@@ -91,6 +91,7 @@ docker compose down                 # 停止してコンテナを削除（デー
 | 設定 | 意味 |
 | --- | --- |
 | `gpus: all` | ホストのNVIDIA GPUを使う |
+| `shm_size: "8gb"` | 共有メモリ（`/dev/shm`）の上限。既定の 64MB では学習系のツールが落ちることがある |
 | `stdin_open` / `tty` | bash を起動したままにして、`exec` で入れるようにする |
 | `volumes` | ディレクトリをマウント。コンテナを消してもデータが残る |
 | `ports: 127.0.0.1:8188:8188` | ComfyUI などのポートを、ホスト自身にだけ公開 |
@@ -104,6 +105,7 @@ compose を使わずに起動する場合（同じく、このリポジトリの
 
 ```bash
 docker run --gpus all -it --name sandbox \
+  --shm-size=8g \
   -v "$PWD/.my-ai-models":/models \
   -v "$PWD/.my-ai-work":/work \
   -v "$PWD/.my-ai-agent-config/claude":/home/ubuntu/.claude \
@@ -131,12 +133,21 @@ python -c "import torch; print(torch.cuda.is_available())"
 
 # エージェントCLI（初回はログインが必要。認証情報はマウント先に保存される）
 claude
-codex
+codex --sandbox danger-full-access    # 理由は下の「Codex CLI のサンドボックス」
 ```
 
 torch 系のパッケージ（`torchaudio` など）を追加するときは、`uv pip install torch torchvision torchaudio` のように torch と同じコマンドでまとめて入れる。別々に入れると CUDA ビルドが食い違い、import でエラーになることがある。
 
 `--listen 0.0.0.0` が無いと、ポートを公開してもホストから接続できない。これはコンテナ内の待ち受け設定で、ホスト側の公開先は `127.0.0.1` のままなので、LAN には公開されない。
+
+### Codex CLI のサンドボックス
+
+Codex CLI は `--sandbox danger-full-access` を付けて起動する。
+
+- Codex CLI は、Linux では bubblewrap（bwrap）でコマンドを隔離して実行する。Docker の既定の設定ではコンテナ内でこの隔離を作れず、付けずに起動するとコマンドの実行が `bwrap: No permissions to create a new namespace` で失敗する。
+- このオプションは Codex 自身の隔離を切る。Codex が実行するコマンドは、`ubuntu` の権限でコンテナ内のすべて（`/work`、`/models`、マウントした Claude Code / Codex の認証情報、ネットワーク）に届く。
+- 隔離はコンテナが受け持つ。ホスト側で届くのは、マウントした4つのディレクトリだけ。
+- 毎回付けたくないときは、`.my-ai-agent-config/codex/config.toml` に `sandbox_mode = "danger-full-access"` と書く。
 
 ### システムのパッケージ（apt）を追加する
 

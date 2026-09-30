@@ -11,6 +11,10 @@ services:
     # ホストのNVIDIA GPUを使う（NVIDIA Container Toolkit が必要）
     gpus: all
 
+    # 共有メモリ（/dev/shm）の上限。既定の 64MB だと、PyTorch の DataLoader を
+    # ワーカープロセス付きで使うツール（学習系など）が Bus error で落ちる
+    shm_size: "8gb"
+
     # bash を起動したままにして、exec で入れるようにする
     stdin_open: true
     tty: true

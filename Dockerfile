@@ -42,7 +42,6 @@ RUN mkdir -p /work /models \
 # --- ここから一般ユーザー ---
 # apt 以外のツールはすべて ~/.local 以下に入れる（コンテナ内で root なしに更新できる）
 USER ubuntu
-ENV HOME=/home/ubuntu
 ENV PATH="/home/ubuntu/.local/bin:${PATH}"
 
 # OpenAI Codex CLI（npm のグローバルインストール先を ~/.local にする）
