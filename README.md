@@ -3,7 +3,7 @@
 GPU を使うAIツールを、ホストから隔離して試すための Docker イメージ。
 
 - ベース: `nvidia/cuda:13.3.1-base-ubuntu26.04`（CUDA の最小ランタイムのみ）
-- 入っているもの: Python3 / venv / git / curl / build-essential / uv / Node.js 26 / Codex CLI / Claude Code
+- 入っているもの: Python3（venv / pip / 開発用ヘッダー）/ git / curl / build-essential / uv / Node.js 26 / Codex CLI / Claude Code
 - 入っていないもの: PyTorch などのAIツール本体（`/work` 以下で venv を作って入れる）、モデル、APIキー・ログイン情報
 - 実行ユーザー: `ubuntu`（UID 1000）
 
@@ -77,10 +77,12 @@ docker compose down                 # 停止してコンテナを削除（デー
 
 | ホスト | コンテナ | 中身 |
 | --- | --- | --- |
-| `.my-ai-models/` | `/models` | モデル |
+| `.my-ai-models/` | `/models` | モデル。Hugging Face と torch hub のダウンロードは自動でここに入る（`huggingface/`、`torch/`） |
 | `.my-ai-work/` | `/work` | 作業データ、各ツールの venv、uv のキャッシュ（`.cache/uv`） |
 | `.my-ai-agent-config/claude/` | `/home/ubuntu/.claude` | Claude Code の設定・認証情報 |
 | `.my-ai-agent-config/codex/` | `/home/ubuntu/.codex` | Codex CLI の設定・認証情報 |
+
+`docker compose down` の後も残るのは、この4つのディレクトリに書かれたものだけ。それ以外の場所（ホームディレクトリの `~/.cache` など）に書かれたものは、コンテナと一緒に消える。
 
 中身（モデル・作業データ・認証情報）は、リポジトリ直下の `.gitignore` で除外していて、コミットされない。このファイルはコンテナにマウントされないので、コンテナ内からは書き換えられない。
 

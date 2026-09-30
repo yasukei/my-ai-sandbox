@@ -14,6 +14,9 @@ FROM nvidia/cuda:13.3.1-base-ubuntu26.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+# UTF-8 ロケール。未設定（POSIX）だと、シェルで日本語の入力や表示が壊れる
+ENV LANG=C.UTF-8
+
 # `curl ... | bash` で curl が失敗したときに、ビルドも失敗させる
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -22,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
         python3-venv \
         python3-pip \
+        python3-dev \
         git \
         curl \
         ca-certificates \
@@ -55,6 +59,11 @@ ENV UV_TORCH_BACKEND=auto
 # キャッシュを /work（マウント先）に置く。venv と同じファイルシステムなので
 # ハードリンクでき、コンテナを作り直してもダウンロードし直さずに済む
 ENV UV_CACHE_DIR=/work/.cache/uv
+
+# Hugging Face / torch hub がダウンロードするモデルを /models（マウント先）に置く。
+# 既定の ~/.cache 以下はコンテナのレイヤーにあり、コンテナを作り直すと消える
+ENV HF_HOME=/models/huggingface
+ENV TORCH_HOME=/models/torch
 
 # Claude Code（ネイティブインストーラー。~/.local/bin に入る）
 # ~/.claude.json も ~/.claude/ の中に置く（マウント先に残り、コンテナを作り直しても消えない）
