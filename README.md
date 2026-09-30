@@ -2,7 +2,7 @@
 
 GPU を使うAIツールを、ホストから隔離して試すための Docker イメージ。
 
-- ベース: `nvidia/cuda:13.3.1-base-ubuntu26.04`（CUDA の最小ランタイムのみ）
+- ベース: `nvidia/cuda:13.4.1-base-ubuntu26.04`（CUDA の最小ランタイムのみ）
 - 入っているもの: Python3（venv / pip / 開発用ヘッダー）/ git / curl / build-essential / uv / Node.js 26 / Codex CLI / Claude Code
 - 入っていないもの: PyTorch などのAIツール本体（`/work` 以下で venv を作って入れる）、モデル、APIキー・ログイン情報
 - 実行ユーザー: `ubuntu`（UID 1000）
@@ -19,13 +19,13 @@ GPU を使うAIツールを、ホストから隔離して試すための Docker 
 nvidia-smi
 
 # コンテナからGPUが見えるか（NVIDIA Container Toolkit が必要）
-docker run --rm --gpus all nvidia/cuda:13.3.1-base-ubuntu26.04 nvidia-smi
+docker run --rm --gpus all nvidia/cuda:13.4.1-base-ubuntu26.04 nvidia-smi
 ```
 
 CUDA のバージョンについて:
 
-- `nvidia-smi` 右上の `CUDA Version` は、ホストのドライバが対応する CUDA の版。ベースイメージのタグ（13.3.1）と一致している必要はない。
-- ベースイメージは起動条件（13.3.1 時点）として「CUDA 13.3 以上、またはドライバーが 535 / 570 / 580 / 590 / 595 系」を要求する。このホストのドライバー（595.91）は CUDA 13.2 表示だが、595 系なので条件を満たす。条件を満たさないホストでは、コンテナが `unsatisfied condition: cuda>=13.3` で起動に失敗することがある。
+- `nvidia-smi` 右上の `CUDA Version` は、ホストのドライバが対応する CUDA の版。ベースイメージのタグ（13.4.1）と一致している必要はない。
+- ベースイメージは起動条件（13.4.1 時点）として「CUDA 13.4 以上、またはドライバーが 535 / 570 / 580 / 590 / 595 / 610 系」を要求する。このホストのドライバー（595.91）は CUDA 13.2 表示だが、595 系なので条件を満たす。条件を満たさないホストでは、コンテナが `unsatisfied condition: cuda>=13.4` で起動に失敗することがある。
 - PyTorch が使う CUDA / cuDNN はイメージのものではなく、`uv pip install` で venv に入るもの。イメージで `UV_TORCH_BACKEND=auto` を設定しているので、`uv pip install` はドライバに合うビルドを選ぶ（素の `pip` や `uv sync` には効かない）。
 - そのためベースは `base` で足りる。CUDA のコードを自分でコンパイルするツール（CUDA 有効の `llama-cpp-python` など）を使う場合だけ、`Dockerfile` の `FROM` を `devel` / `cudnn-devel` に変えて再ビルドする。
 
