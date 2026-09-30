@@ -16,7 +16,7 @@
 # タグに加えてダイジェストでも固定する（同じタグの作り直しも Dependabot の PR で届く）。
 # ダイジェストは docker buildx imagetools inspect <イメージ>:<タグ> の最初の Digest
 # （アーキテクチャ別ではなく全体の値）。
-FROM nvidia/cuda:13.3.1-base-ubuntu26.04@sha256:30f7a2345973fbb584f4c8bc9a7c16c7bae6d0ec08883df4e030387d74756292
+FROM nvidia/cuda:13.4.1-base-ubuntu26.04@sha256:9b091bbc3e1481238346e90d93f63684af509c08ab32218f98793141fc540fd9
 
 # apt を対話なしで実行する。ARG なのでビルド時だけ効き、コンテナ実行時には残らない
 ARG DEBIAN_FRONTEND=noninteractive
