@@ -1,0 +1,28 @@
+# ビルド:  docker compose build
+# 起動:    docker compose up -d
+# 入る:    docker compose exec sandbox bash
+# 終了:    docker compose down
+
+services:
+  sandbox:
+    image: yasukei/my-ai-sandbox:latest
+    build: .
+
+    # ホストのNVIDIA GPUを使う（NVIDIA Container Toolkit が必要）
+    gpus: all
+
+    # bash を起動したままにして、exec で入れるようにする
+    stdin_open: true
+    tty: true
+
+    # ホスト側はこのリポジトリ直下のディレクトリ（リポジトリに含まれている）
+    # 中身は各ディレクトリの .gitignore と .dockerignore で除外済み
+    volumes:
+      - ./.my-ai-models:/models
+      - ./.my-ai-work:/work
+      - ./.my-ai-agent-config/claude:/home/ubuntu/.claude
+      - ./.my-ai-agent-config/codex:/home/ubuntu/.codex
+
+    # ComfyUI など。認証が無いので、ホスト自身（127.0.0.1）にだけ公開する
+    ports:
+      - "127.0.0.1:8188:8188"
