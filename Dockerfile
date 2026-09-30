@@ -60,7 +60,10 @@ ENV UV_CACHE_DIR=/work/.cache/uv
 # Claude Code（ネイティブインストーラー。~/.local/bin に入る）
 # ~/.claude.json も ~/.claude/ の中に置く（マウント先に残り、コンテナを作り直しても消えない）
 ENV CLAUDE_CONFIG_DIR=/home/ubuntu/.claude
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# インストーラーが ~/.claude に書く設定（machineID / userID などの識別子を含む）は
+# イメージに残さない。別の RUN で消すと前のレイヤーに残るので、同じ RUN の中で消す
+RUN curl -fsSL https://claude.ai/install.sh | bash \
+    && rm -rf /home/ubuntu/.claude
 
 WORKDIR /work
 

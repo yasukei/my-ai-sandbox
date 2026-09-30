@@ -82,7 +82,9 @@ docker compose down                 # 停止してコンテナを削除（デー
 | `.my-ai-agent-config/claude/` | `/home/ubuntu/.claude` | Claude Code の設定・認証情報 |
 | `.my-ai-agent-config/codex/` | `/home/ubuntu/.codex` | Codex CLI の設定・認証情報 |
 
-各ディレクトリには「中身をすべて除外し、自分自身だけを残す」`.gitignore` を置いている。これでディレクトリだけが git に入り、中身（モデル・作業データ・認証情報）はコミットされない。ビルドコンテキストからは `.dockerignore` で除外している。
+中身（モデル・作業データ・認証情報）は、リポジトリ直下の `.gitignore` で除外していて、コミットされない。このファイルはコンテナにマウントされないので、コンテナ内からは書き換えられない。
+
+各ディレクトリ内にも `.gitignore` がある。こちらは空のディレクトリを git に残すためのもので、同じ除外も書いてある（除外は二重になっている）。ビルドコンテキストからは `.dockerignore` で除外している。
 
 `docker-compose.yml` の設定:
 
@@ -168,5 +170,5 @@ docker system prune                # 不要なコンテナ・イメージ・キ�
 ## 注意
 
 - APIキーやログイン情報はイメージに含めない。`~/.claude` と `~/.codex` はマウントで渡す。
-- 認証情報の実体は `.my-ai-agent-config/` にある。ディレクトリ内の `.gitignore` を消したり書き換えたり、`git add -f` でコミットしたりしない。
+- 認証情報の実体は `.my-ai-agent-config/` にある。リポジトリ直下の `.gitignore` から該当の行を消したり、`git add -f` でコミットしたりしない。
 - イメージは Docker Hub に push するため、機密情報を `Dockerfile` に書かない。
