@@ -27,3 +27,15 @@ updates:
     groups:
       docker-minor-patch:
         update-types: [minor, patch]
+
+  # tests/secret-scan.sh が使う trivy のイメージ（tests/trivy/Dockerfile の FROM）。
+  # ベースイメージの更新 PR は GPU での確認が要るので、混ざらないようにエントリを分ける
+  - package-ecosystem: docker
+    directory: /tests/trivy
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      trivy-minor-patch:
+        update-types: [minor, patch]

@@ -69,6 +69,7 @@ tests/smoke-test.sh yasukei/my-ai-sandbox:20260930
 
 確かめる内容:
 
+- 認証情報や識別子が入るファイル（Claude Code / Codex CLI の設定、Hugging Face のトークン、git / npm / uv / pip / ssh / docker / gh の認証情報）がイメージに無いこと。認証情報らしい名前の環境変数が無いこと
 - イメージの既定の実行ユーザー（`ubuntu`、UID 1000）と作業ディレクトリ
 - `/work` と `/models` に書き込めること
 - 入っているツール（Python3 / git / curl / gcc / g++ / make / Node.js / uv / Codex CLI / Claude Code）が動くこと
@@ -81,7 +82,27 @@ GPU のテストは、ホストに `nvidia-smi` があるときだけ実行す�
 
 使い捨てのコンテナで実行し、ホストのディレクトリはマウントしない。`.my-ai-*` の中身には触らない。PyTorch のインストールや、Claude Code / Codex CLI へのログインは対象外。
 
-同じテストを GitHub Actions でも実行している（`.github/workflows/ci.yml`）。`main` への push と pull request のたびに、イメージをビルドしてスモークテストを流す。GitHub のランナーには GPU が無いので、GPU のテストだけはスキップされる。
+### 秘密情報のスキャン
+
+イメージに認証情報などの秘密情報が入っていないかを、[trivy](https://trivy.dev/) で調べる。
+
+```bash
+tests/secret-scan.sh
+
+# 別のタグを調べるとき
+tests/secret-scan.sh yasukei/my-ai-sandbox:20260930
+```
+
+- trivy は公式の Docker イメージ（`aquasec/trivy`）で動かす。使う版は `tests/trivy/Dockerfile` の `FROM` で決まる（ビルドはせず、この行だけを読む）。
+- 調べるのは、イメージ内のファイルと、イメージの設定（環境変数、ビルドの履歴）。
+- イメージを `docker save` で一時的な tar（700MB 程度）にしてから、trivy に渡す。trivy のコンテナには Docker のソケットを渡さず、ネットワークも切って実行する。
+- 見つかると終了コード 1、スキャン自体ができないと 2 で終わる。
+
+trivy が見つけるのは、既知の形式のトークンや鍵（GitHub のトークン、秘密鍵など）。形式を知らないトークンや、Claude Code の `machineID` のような識別子は見逃すので、認証情報が入るファイルそのものが無いことは、スモークテストで別に確かめている。
+
+### CI
+
+スモークテストと秘密情報のスキャンは、GitHub Actions でも実行している（`.github/workflows/ci.yml`）。`main` への push と pull request のたびに、イメージをビルドして両方を流す。GitHub のランナーには GPU が無いので、GPU のテストだけはスキップされる。
 
 ワークフロー自体は [zizmor](https://docs.zizmor.sh/) で静的解析している（`.github/workflows/zizmor.yml`）。指摘があるとジョブが失敗する。ワークフローで使うアクションは、タグではなくコミットのハッシュで指定する（`uses: actions/checkout@<ハッシュ> # v7.0.1` の形）。権限はワークフロー全体では `permissions: {}` にして、ジョブごとに必要なものだけを付ける。
 
@@ -100,7 +121,7 @@ GH_TOKEN=$(gh auth token) uvx zizmor .
 
 | 依存 | 更新のされ方 |
 | --- | --- |
-| ワークフローのアクション、ベースイメージ（`Dockerfile` の `FROM`） | Dependabot が月に 1 回確認して、PR を作る（`.github/dependabot.yml`） |
+| ワークフローのアクション、ベースイメージ（`Dockerfile` の `FROM`）、trivy のイメージ（`tests/trivy/Dockerfile` の `FROM`） | Dependabot が月に 1 回確認して、PR を作る（`.github/dependabot.yml`） |
 | Codex CLI、uv、Claude Code、apt のパッケージ（Node.js 26.x の中での更新を含む） | 版を固定していない。`docker compose build --no-cache` で作り直すと、その時点の最新が入る |
 | Node.js のメジャー版（`Dockerfile` の `setup_26.x`）、Ubuntu の版（`FROM` のタグの `ubuntu26.04`） | Dependabot は変えないので、手で上げる |
 
@@ -108,7 +129,8 @@ Dependabot の設定:
 
 - major の更新は 1 つずつ個別の PR、minor / patch はまとめて 1 つの PR になる。
 - 通常の更新では、公開から 7 日たっていない版は提案しない。セキュリティ更新には、この待ち期間は効かない。
-- ベースイメージはタグとダイジェストの両方で固定している。NVIDIA が同じタグのまま作り直した場合も、ダイジェストだけが変わる PR として届く。
+- ベースイメージと trivy のイメージは、タグとダイジェストの両方で固定している。同じタグのまま作り直された場合も、ダイジェストだけが変わる PR として届く。
+- trivy のイメージの更新は、ベースイメージとは別の PR になる（ベースイメージの PR だけ、下の GPU での確認が要るため）。trivy の PR は CI が通ればマージしてよい。
 
 ベースイメージの更新 PR の扱い:
 
