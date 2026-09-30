@@ -29,6 +29,7 @@ jobs:
       - name: スモークテスト
         run: tests/smoke-test.sh
 
-      # 公式の trivy のイメージで、イメージ内の認証情報などの秘密情報を探す
-      - name: 秘密情報のスキャン（trivy）
-        run: tests/secret-scan.sh
+      # 公式の trivy のイメージで、脆弱性・設定の問題・秘密情報・ライセンスを調べる。
+      # 失敗させるのは、秘密情報と、修正版がある CRITICAL の脆弱性だけ
+      - name: イメージのスキャン（trivy）
+        run: tests/image-scan.sh

@@ -82,27 +82,42 @@ GPU のテストは、ホストに `nvidia-smi` があるときだけ実行す�
 
 使い捨てのコンテナで実行し、ホストのディレクトリはマウントしない。`.my-ai-*` の中身には触らない。PyTorch のインストールや、Claude Code / Codex CLI へのログインは対象外。
 
-### 秘密情報のスキャン
+### イメージのスキャン（trivy）
 
-イメージに認証情報などの秘密情報が入っていないかを、[trivy](https://trivy.dev/) で調べる。
+イメージを [trivy](https://trivy.dev/) でスキャンする。
 
 ```bash
-tests/secret-scan.sh
+tests/image-scan.sh
 
 # 別のタグを調べるとき
-tests/secret-scan.sh yasukei/my-ai-sandbox:20260930
+tests/image-scan.sh yasukei/my-ai-sandbox:20260930
 ```
 
-- trivy は公式の Docker イメージ（`aquasec/trivy`）で動かす。使う版は `tests/trivy/Dockerfile` の `FROM` で決まる（ビルドはせず、この行だけを読む）。
-- 調べるのは、イメージ内のファイルと、イメージの設定（環境変数、ビルドの履歴）。
-- イメージを `docker save` で一時的な tar（700MB 程度）にしてから、trivy に渡す。trivy のコンテナには Docker のソケットを渡さず、ネットワークも切って実行する。
-- 見つかると終了コード 1、スキャン自体ができないと 2 で終わる。
+trivy のスキャナはすべて使う。失敗させる（終了コード 1）のは、秘密情報と、修正版がある CRITICAL の脆弱性だけ。ほかは集計と一覧を表示するだけ。
 
-trivy が見つけるのは、既知の形式のトークンや鍵（GitHub のトークン、秘密鍵など）。形式を知らないトークンや、Claude Code の `machineID` のような識別子は見逃すので、認証情報が入るファイルそのものが無いことは、スモークテストで別に確かめている。
+| スキャナ | 調べるもの | 扱い |
+| --- | --- | --- |
+| 秘密情報（`secret`） | イメージ内のファイルと、イメージの設定（環境変数、ビルドの履歴）の中のトークンや鍵 | 1 件でもあれば失敗 |
+| 脆弱性（`vuln`） | OS と言語のパッケージの既知の脆弱性 | 修正版がある CRITICAL があれば失敗。HIGH 以上は一覧を表示し、それ以外は件数だけ |
+| 設定の問題（`misconfig`） | イメージの設定の、Dockerfile の書き方の問題 | 表示のみ |
+| ライセンス（`license`） | パッケージのライセンスの種類 | 件数だけ表示 |
+
+- trivy は公式の Docker イメージ（`aquasec/trivy`）で動かす。使う版は `tests/trivy/Dockerfile` の `FROM` で決まる（ビルドはせず、この行だけを読む）。
+- イメージを `docker save` で一時的な tar（700MB 程度）にしてから、trivy に渡す。trivy のコンテナには Docker のソケットを渡さない。
+- 脆弱性の DB をダウンロードするので、ネットワークが必要。結果の集計（`tests/trivy/report.py`）に、ホストの `python3` を使う。
+- スキャンできなかったときは終了コード 2 で終わる。
+
+結果の読み方:
+
+- 脆弱性の件数のほとんどは `linux-libc-dev`（カーネルのヘッダー）。カーネルの脆弱性だが、コンテナが使うのはホストのカーネルなので、ほぼ関係ない。
+- 脆弱性の DB は日々更新される。イメージを変えていなくても、新しい脆弱性が公開されると結果が変わり、CI が失敗するようになることがある。修正版がある CRITICAL が出たら、`docker compose build --no-cache` での作り直しや、ベースイメージの更新で直す。
+- ライセンスの「restricted」は GPL などのこと。Ubuntu のパッケージには必ず含まれるので、問題ではない。
+
+trivy が見つける秘密情報は、既知の形式のトークンや鍵（GitHub のトークン、秘密鍵など）。形式を知らないトークンや、Claude Code の `machineID` のような識別子は見逃すので、認証情報が入るファイルそのものが無いことは、スモークテストで別に確かめている。
 
 ### CI
 
-スモークテストと秘密情報のスキャンは、GitHub Actions でも実行している（`.github/workflows/ci.yml`）。`main` への push と pull request のたびに、イメージをビルドして両方を流す。GitHub のランナーには GPU が無いので、GPU のテストだけはスキップされる。
+スモークテストとイメージのスキャンは、GitHub Actions でも実行している（`.github/workflows/ci.yml`）。`main` への push と pull request のたびに、イメージをビルドして両方を流す。GitHub のランナーには GPU が無いので、GPU のテストだけはスキップされる。
 
 ワークフロー自体は [zizmor](https://docs.zizmor.sh/) で静的解析している（`.github/workflows/zizmor.yml`）。指摘があるとジョブが失敗する。ワークフローで使うアクションは、タグではなくコミットのハッシュで指定する（`uses: actions/checkout@<ハッシュ> # v7.0.1` の形）。権限はワークフロー全体では `permissions: {}` にして、ジョブごとに必要なものだけを付ける。
 

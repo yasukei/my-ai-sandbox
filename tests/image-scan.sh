@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
-# ビルド済みイメージに、認証情報などの秘密情報が入っていないかを trivy で調べる。
+# ビルド済みイメージを trivy でスキャンする。
 #
 # 使い方:
-#   tests/secret-scan.sh [イメージ名]
+#   tests/image-scan.sh [イメージ名]
 #
 # - イメージ名を省略すると、docker-compose.yml の image: を使う。
 # - trivy は公式の Docker イメージで動かす。使う版は tests/trivy/Dockerfile の FROM で決まる。
-# - 調べるのは、イメージ内のファイルと、イメージの設定（環境変数、ビルドの履歴）。
+# - trivy のスキャナはすべて使う。
+#     イメージ内: 脆弱性（vuln）、設定の問題（misconfig）、秘密情報（secret）、ライセンス（license）
+#     イメージの設定（環境変数、ビルドの履歴）: 設定の問題、秘密情報
+# - 失敗させるのは、秘密情報と、修正版がある CRITICAL の脆弱性だけ。
+#   それ以外は集計と一覧を表示するだけにする（判定は tests/trivy/report.py）。
 # - イメージは docker save で tar にしてから trivy に渡す。trivy のコンテナに
-#   Docker のソケットを渡さずに済み、ネットワークも切って実行できる。
-#   tar はイメージの大きさぶん（圧縮後で 700MB 程度）の一時ファイルになる。
+#   Docker のソケットを渡さずに済む。tar はイメージの大きさぶん（圧縮後で 700MB 程度）の
+#   一時ファイルになる。
+# - 脆弱性の DB をダウンロードするので、ネットワークが必要。
+# - ホストに python3 が必要（結果の集計に使う）。
 #
-# 終了コード: 0 = 見つからなかった / 1 = 見つかった / 2 = スキャンできなかった
+# 終了コード: 0 = 成功 / 1 = 失敗させる条件に当たった / 2 = スキャンできなかった
 
 set -euo pipefail
 
@@ -36,6 +42,10 @@ if [[ $TRIVY_IMAGE != *@sha256:* ]]; then
     fail "tests/trivy/Dockerfile の FROM から、ダイジェスト付きの trivy のイメージ名を読み取れません（読み取った値: ${TRIVY_IMAGE:-なし}）"
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+    fail "python3 が見つかりません（結果の集計に使います）"
+fi
+
 if [[ $# -ge 1 ]]; then
     IMAGE="$1"
 else
@@ -57,27 +67,17 @@ if ! docker save "$IMAGE" -o "$WORK_DIR/image.tar" 2>"$WORK_DIR/err"; then
     fail "docker save に失敗しました:"
 fi
 
-# 秘密情報が見つかったときだけ終了コード 3 にして、trivy 自体のエラーと区別する
-status=0
-docker run --rm --network none -v "$WORK_DIR:/scan:ro" "$TRIVY_IMAGE" image \
+# 結果の JSON は stdout で受け取る。trivy のコンテナからホストへは書き込ませない
+# （trivy は root で動くので、書かせると root 所有のファイルが残る）
+if ! docker run --rm -v "$WORK_DIR/image.tar:/scan/image.tar:ro" "$TRIVY_IMAGE" image \
     --input /scan/image.tar \
-    --scanners secret \
-    --image-config-scanners secret \
-    --exit-code 3 \
+    --scanners vuln,misconfig,secret,license \
+    --image-config-scanners misconfig,secret \
+    --format json \
     --no-progress \
     --skip-version-check \
-    --table-mode detailed || status=$?
+    >"$WORK_DIR/result.json" 2>"$WORK_DIR/err"; then
+    fail "trivy でスキャンできませんでした:"
+fi
 
-case "$status" in
-    0)
-        echo "結果: 秘密情報は見つかりませんでした"
-        ;;
-    3)
-        echo "結果: 秘密情報が見つかりました（上の一覧を参照）" >&2
-        exit 1
-        ;;
-    *)
-        echo "結果: trivy でスキャンできませんでした（終了コード $status）" >&2
-        exit 2
-        ;;
-esac
+python3 "$REPO_ROOT/tests/trivy/report.py" "$WORK_DIR/result.json"

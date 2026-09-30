@@ -151,7 +151,7 @@ fi
 echo "イメージ: $IMAGE"
 docker run -d --init --name "$CONTAINER" "$IMAGE" sleep infinity >/dev/null
 
-# trivy（tests/secret-scan.sh）は、既知の形式のトークンや鍵を中身から探す。
+# trivy（tests/image-scan.sh）が見つける秘密情報は、既知の形式のトークンや鍵だけ。
 # ここでは、形式によらず、認証情報や識別子が入るファイルそのものが無いことを確かめる。
 # /root も見るので root で実行する。
 # ほかの検査でツールを動かす前に確かめる（codex は --version でも ~/.codex を作るため）。
