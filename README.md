@@ -25,7 +25,7 @@ docker run --rm --gpus all nvidia/cuda:13.3.1-base-ubuntu26.04 nvidia-smi
 CUDA のバージョンについて:
 
 - `nvidia-smi` 右上の `CUDA Version` は、ホストのドライバが対応する CUDA の版。ベースイメージのタグ（13.3.1）と一致している必要はない。
-- ベースイメージは起動条件として「CUDA 13.3 以上、またはドライバーが 535 / 570 / 580 / 590 / 595 系」を要求する。このホストのドライバー（595.91）は CUDA 13.2 表示だが、595 系なので条件を満たす。条件を満たさないホストでは、コンテナが `unsatisfied condition: cuda>=13.3` で起動に失敗することがある。
+- ベースイメージは起動条件（13.3.1 時点）として「CUDA 13.3 以上、またはドライバーが 535 / 570 / 580 / 590 / 595 系」を要求する。このホストのドライバー（595.91）は CUDA 13.2 表示だが、595 系なので条件を満たす。条件を満たさないホストでは、コンテナが `unsatisfied condition: cuda>=13.3` で起動に失敗することがある。
 - PyTorch が使う CUDA / cuDNN はイメージのものではなく、`uv pip install` で venv に入るもの。イメージで `UV_TORCH_BACKEND=auto` を設定しているので、`uv pip install` はドライバに合うビルドを選ぶ（素の `pip` や `uv sync` には効かない）。
 - そのためベースは `base` で足りる。CUDA のコードを自分でコンパイルするツール（CUDA 有効の `llama-cpp-python` など）を使う場合だけ、`Dockerfile` の `FROM` を `devel` / `cudnn-devel` に変えて再ビルドする。
 
@@ -34,9 +34,8 @@ CUDA のバージョンについて:
 ```bash
 docker compose build
 
-# 最新のベースイメージ / apt / npm / uv / Claude Code を取り直したいとき
-# （--pull でベースイメージを取り直し、--no-cache でキャッシュを使わずに作り直す）
-docker compose build --pull --no-cache
+# apt / npm / uv / Claude Code を最新にしたいとき（キャッシュを使わずに作り直す）
+docker compose build --no-cache
 
 # ビルドした日付のタグも付けておく（前のビルドに戻せるようにするため）
 docker tag yasukei/my-ai-sandbox:latest yasukei/my-ai-sandbox:$(date +%Y%m%d)
@@ -94,6 +93,40 @@ GH_TOKEN=$(gh auth token) uvx zizmor .
 
 - `GH_TOKEN` を渡すと、CI と同じくオンラインの検査（既知の脆弱性があるアクションの検出など）も実行される。渡さないと、これらの検査は実行されない。
 - CI で使う zizmor は、zizmor-action に同梱されたバージョン（ダイジェストで固定）。`uvx zizmor` は実行した時点の最新版を使うので、バージョンが違うと結果が変わることがある。CI の結果を正とする。
+
+## 依存の更新
+
+依存は、更新のされ方で 3 種類に分かれる。
+
+| 依存 | 更新のされ方 |
+| --- | --- |
+| ワークフローのアクション、ベースイメージ（`Dockerfile` の `FROM`） | Dependabot が月に 1 回確認して、PR を作る（`.github/dependabot.yml`） |
+| Codex CLI、uv、Claude Code、apt のパッケージ（Node.js 26.x の中での更新を含む） | 版を固定していない。`docker compose build --no-cache` で作り直すと、その時点の最新が入る |
+| Node.js のメジャー版（`Dockerfile` の `setup_26.x`）、Ubuntu の版（`FROM` のタグの `ubuntu26.04`） | Dependabot は変えないので、手で上げる |
+
+Dependabot の設定:
+
+- major の更新は 1 つずつ個別の PR、minor / patch はまとめて 1 つの PR になる。
+- 通常の更新では、公開から 7 日たっていない版は提案しない。セキュリティ更新には、この待ち期間は効かない。
+- ベースイメージはタグとダイジェストの両方で固定している。NVIDIA が同じタグのまま作り直した場合も、ダイジェストだけが変わる PR として届く。
+
+ベースイメージの更新 PR の扱い:
+
+- **タグが変わる PR（CUDA が上がる）**: CI が通っても、そのままマージしない。CI のランナーには GPU が無く、ホストのドライバで起動できるかは確かめられない。CUDA が上がると起動条件（`NVIDIA_REQUIRE_CUDA`）も変わるので、手元で次を実行して通ってからマージする。
+
+  ```bash
+  gh pr checkout <PR の番号>
+  docker compose build
+  SMOKE_GPU=1 tests/smoke-test.sh
+  ```
+
+  - `tests/smoke-test.sh` はイメージをビルドしないので、先に PR のブランチでビルドし直す。手元の古い `latest` のままだと、古い CUDA のイメージを検査して合格してしまう。
+  - `SMOKE_GPU=1` を付けると、GPU を使えないときに GPU の検査が飛ばされず、失敗として止まる。
+  - Dependabot は README を書き換えないので、README のタグの記述を新しいタグに直す（冒頭の「ベース」、「事前確認」の `docker run` の例、「CUDA のバージョンについて」の「ベースイメージのタグ」）。
+  - 起動条件が変わっていたら、`Dockerfile` の `FROM` の上のコメントと、この README の「CUDA のバージョンについて」の条件も新しい内容に直す。
+  - どちらの修正も、PR のブランチにコミットする。
+  - 確かめたあと、手元の `latest` は PR のイメージになっている。マージしなかったときは、`main` に戻ってビルドし直す。
+- **ダイジェストだけが変わる PR（同じタグの作り直し）**: CI が通ればマージしてよい。
 
 ## Docker Hub へのアップロード
 
