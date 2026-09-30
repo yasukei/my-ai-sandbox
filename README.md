@@ -56,6 +56,30 @@ docker compose up -d    # イメージが変わっていればコンテナを作
 
 ツールの更新はこのイメージの再ビルドで行う。Codex CLI / uv / Claude Code は `ubuntu` の `~/.local` 以下に入っているので、コンテナ内でも更新できる（`npm install -g @openai/codex@latest`、`uv self update`、`claude update`）。ただしコンテナを削除すると元に戻る。
 
+## イメージのテスト
+
+ビルドしたイメージが使える状態かを、スモークテストで確かめる。
+
+```bash
+tests/smoke-test.sh
+
+# 別のタグをテストするとき
+tests/smoke-test.sh yasukei/my-ai-sandbox:20260930
+```
+
+確かめる内容:
+
+- 実行ユーザー（`ubuntu`、UID 1000）と作業ディレクトリ
+- `/work` と `/models` に書き込めること
+- 入っているツール（Python3 / git / curl / gcc / Node.js / uv / Codex CLI / Claude Code）が動くこと
+- 環境変数（`LANG`、`UV_TORCH_BACKEND`、`HF_HOME` など）
+- Python のヘッダーを使ったコンパイルと、uv での venv 作成・パッケージのインストール
+- コンテナから GPU が見えること（ホストに `nvidia-smi` があるときだけ）
+
+使い捨てのコンテナで実行し、ホストのディレクトリはマウントしない。`.my-ai-*` の中身には触らない。PyTorch のインストールや、Claude Code / Codex CLI へのログインは対象外。
+
+同じテストを GitHub Actions でも実行している（`.github/workflows/ci.yml`）。`main` への push と pull request のたびに、イメージをビルドしてスモークテストを流す。GitHub のランナーには GPU が無いので、GPU のテストだけはスキップされる。
+
 ## Docker Hub へのアップロード
 
 ```bash
