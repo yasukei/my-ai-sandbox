@@ -6,6 +6,7 @@ GPU を使うAIツールを、ホストから隔離して試すための Docker 
 - 入っているもの: Python3（venv / pip / 開発用ヘッダー）/ git / curl / build-essential / uv / Node.js 26 / Codex CLI / Claude Code
 - 入っていないもの: PyTorch などのAIツール本体（`/work` 以下で venv を作って入れる）、モデル、APIキー・ログイン情報
 - 実行ユーザー: `ubuntu`（UID 1000）
+- 前提: ホスト側のユーザーも UID 1000 であること（`id -u` で確認）。rootless Docker には対応していない
 
 以下、イメージ名の `yasukei` は自分の Docker Hub ユーザー名に読み替える（`docker-compose.yml` の `image:` も同様）。
 
@@ -23,8 +24,9 @@ docker run --rm --gpus all nvidia/cuda:13.3.1-base-ubuntu26.04 nvidia-smi
 
 CUDA のバージョンについて:
 
-- `nvidia-smi` 右上の `CUDA Version` は、ホストのドライバが対応する CUDA の版。ベースイメージのタグと一致している必要はない（同じ 13.x 系なら動く）。
-- PyTorch が使う CUDA / cuDNN はイメージのものではなく、`uv pip install` で venv に入るもの。イメージで `UV_TORCH_BACKEND=auto` を設定しているので、uv がドライバに合うビルドを選ぶ。
+- `nvidia-smi` 右上の `CUDA Version` は、ホストのドライバが対応する CUDA の版。ベースイメージのタグ（13.3.1）と一致している必要はない。
+- ベースイメージは起動条件として「CUDA 13.3 以上、またはドライバーが 535 / 570 / 580 / 590 / 595 系」を要求する。このホストのドライバー（595.91）は CUDA 13.2 表示だが、595 系なので条件を満たす。条件を満たさないホストでは、コンテナが `unsatisfied condition: cuda>=13.3` で起動に失敗することがある。
+- PyTorch が使う CUDA / cuDNN はイメージのものではなく、`uv pip install` で venv に入るもの。イメージで `UV_TORCH_BACKEND=auto` を設定しているので、`uv pip install` はドライバに合うビルドを選ぶ（素の `pip` や `uv sync` には効かない）。
 - そのためベースは `base` で足りる。CUDA のコードを自分でコンパイルするツール（CUDA 有効の `llama-cpp-python` など）を使う場合だけ、`Dockerfile` の `FROM` を `devel` / `cudnn-devel` に変えて再ビルドする。
 
 ## イメージのビルド
@@ -94,14 +96,17 @@ docker compose down                 # 停止してコンテナを削除（デー
 | --- | --- |
 | `gpus: all` | ホストのNVIDIA GPUを使う |
 | `shm_size: "8gb"` | 共有メモリ（`/dev/shm`）の上限。既定の 64MB では学習系のツールが落ちることがある |
-| `stdin_open` / `tty` | bash を起動したままにして、`exec` で入れるようにする |
+| `command: sleep infinity` | コンテナを起動したままにして、`exec` で入れるようにする |
+| `init: true` | `stop` / `down` がすぐ終わるようにする（無いと毎回 10 秒待たされる） |
 | `volumes` | ディレクトリをマウント。コンテナを消してもデータが残る |
 | `ports: 127.0.0.1:8188:8188` | ComfyUI などのポートを、ホスト自身にだけ公開 |
 
 補足:
 
 - ポートは `127.0.0.1` に限定している。`8188:8188` と書くと LAN の他の端末からも接続でき、ファイアウォール（ufw）でも止まらない。ComfyUI には認証が無いので、限定を外さない。
-- マウント先が root 所有になると `ubuntu` から書き込めない。その場合はホスト側で `sudo chown -R 1000:1000 .my-ai-work` などを実行する。
+- `docker compose stop` / `down` は、`exec` で動かしているツールを強制終了する。先にツール側を終了させておく。
+- マウント先の権限は UID の数値で決まり、コンテナの `ubuntu` は UID 1000 固定。ホストのユーザーが UID 1000 でないと、コンテナからマウント先に書き込めない。
+- マウント先に root 所有のファイルができると（root で入って作った場合など）、`ubuntu` から書き込めない。その場合はホスト側で `sudo chown -R "$(id -u):$(id -g)" .my-ai-work` などを実行して、自分の所有に戻す。
 
 compose を使わずに起動する場合（同じく、このリポジトリのディレクトリで実行する）:
 
