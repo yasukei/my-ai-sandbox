@@ -84,7 +84,16 @@ GPU のテストは、ホストに `nvidia-smi` があるときだけ実行す�
 
 同じテストを GitHub Actions でも実行している（`.github/workflows/ci.yml`）。`main` への push と pull request のたびに、イメージをビルドしてスモークテストを流す。GitHub のランナーには GPU が無いので、GPU のテストだけはスキップされる。
 
-ワークフロー自体は [zizmor](https://docs.zizmor.sh/) で静的解析している（`.github/workflows/zizmor.yml`）。指摘があるとジョブが失敗する。ワークフローで使うアクションは、タグではなくコミットのハッシュで指定する（`uses: actions/checkout@<ハッシュ> # v7.0.1` の形）。手元では `uvx zizmor .` で同じ解析を実行できる。
+ワークフロー自体は [zizmor](https://docs.zizmor.sh/) で静的解析している（`.github/workflows/zizmor.yml`）。指摘があるとジョブが失敗する。ワークフローで使うアクションは、タグではなくコミットのハッシュで指定する（`uses: actions/checkout@<ハッシュ> # v7.0.1` の形）。権限はワークフロー全体では `permissions: {}` にして、ジョブごとに必要なものだけを付ける。
+
+手元で zizmor を実行するとき:
+
+```bash
+GH_TOKEN=$(gh auth token) uvx zizmor .
+```
+
+- `GH_TOKEN` を渡すと、CI と同じくオンラインの検査（既知の脆弱性があるアクションの検出など）も実行される。渡さないと、これらの検査は実行されない。
+- CI で使う zizmor は、zizmor-action に同梱されたバージョン（ダイジェストで固定）。`uvx zizmor` は実行した時点の最新版を使うので、バージョンが違うと結果が変わることがある。CI の結果を正とする。
 
 依存の更新は Dependabot に任せている（`.github/dependabot.yml`）。月に 1 回、ワークフローのアクションと `Dockerfile` のベースイメージを確認し、更新があれば PR を作る。major の更新は 1 つずつ個別の PR、minor / patch はまとめて 1 つの PR になる。公開から 7 日たっていない版は提案しない。
 
