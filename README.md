@@ -80,6 +80,8 @@ tests/smoke-test.sh yasukei/my-ai-sandbox:20260930
 
 同じテストを GitHub Actions でも実行している（`.github/workflows/ci.yml`）。`main` への push と pull request のたびに、イメージをビルドしてスモークテストを流す。GitHub のランナーには GPU が無いので、GPU のテストだけはスキップされる。
 
+ワークフロー自体は [zizmor](https://docs.zizmor.sh/) で静的解析している（`.github/workflows/zizmor.yml`）。指摘があるとジョブが失敗する。ワークフローで使うアクションは、タグではなくコミットのハッシュで指定する（`uses: actions/checkout@<ハッシュ> # v7.0.1` の形）。手元では `uvx zizmor .` で同じ解析を実行できる。
+
 ## Docker Hub へのアップロード
 
 ```bash
