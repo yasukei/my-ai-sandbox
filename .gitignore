@@ -1,0 +1,16 @@
+# コンテナにマウントするディレクトリの中身（モデル・作業データ・認証情報）を除外する。
+# 各ディレクトリ内にも同じ役割の .gitignore があるが、そちらはコンテナから
+# 書き換えられる場所にある。このファイルはマウントされないので、ここでも除外しておく。
+/.my-ai-models/*
+/.my-ai-work/*
+/.my-ai-agent-config/*
+!/.my-ai-agent-config/claude/
+!/.my-ai-agent-config/codex/
+/.my-ai-agent-config/claude/*
+/.my-ai-agent-config/codex/*
+
+# ディレクトリ自体を git に残すための .gitignore だけは除外しない
+!/.my-ai-models/.gitignore
+!/.my-ai-work/.gitignore
+!/.my-ai-agent-config/claude/.gitignore
+!/.my-ai-agent-config/codex/.gitignore

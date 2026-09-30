@@ -1,0 +1,34 @@
+# ビルド:  docker compose build
+# 起動:    docker compose up -d
+# 入る:    docker compose exec sandbox bash
+# 終了:    docker compose down
+
+services:
+  sandbox:
+    image: yasukei/my-ai-sandbox:latest
+    build: .
+
+    # ホストのNVIDIA GPUを使う（NVIDIA Container Toolkit が必要）
+    gpus: all
+
+    # 共有メモリ（/dev/shm）の上限。既定の 64MB だと、PyTorch の DataLoader を
+    # ワーカープロセス付きで使うツール（学習系など）が Bus error で落ちる
+    shm_size: "8gb"
+
+    # コンテナを起動したままにするだけのコマンド。シェルには exec で入る。
+    # init を PID 1 にして、停止のシグナル（SIGTERM）ですぐ終了するようにする
+    # （bash を PID 1 にすると SIGTERM を無視し、停止のたびに 10 秒待たされる）
+    command: ["sleep", "infinity"]
+    init: true
+
+    # ホスト側はこのリポジトリ直下のディレクトリ（リポジトリに含まれている）
+    # 中身は各ディレクトリの .gitignore と .dockerignore で除外済み
+    volumes:
+      - ./.my-ai-models:/models
+      - ./.my-ai-work:/work
+      - ./.my-ai-agent-config/claude:/home/ubuntu/.claude
+      - ./.my-ai-agent-config/codex:/home/ubuntu/.codex
+
+    # ComfyUI など。認証が無いので、ホスト自身（127.0.0.1）にだけ公開する
+    ports:
+      - "127.0.0.1:8188:8188"
