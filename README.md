@@ -61,6 +61,7 @@ docker compose up -d    # イメージが変わっていればコンテナを作
 ビルドしたイメージが使える状態かを、スモークテストで確かめる。
 
 ```bash
+# docker-compose.yml の image: に書いてあるイメージをテストする
 tests/smoke-test.sh
 
 # 別のタグをテストするとき
@@ -69,12 +70,15 @@ tests/smoke-test.sh yasukei/my-ai-sandbox:20260930
 
 確かめる内容:
 
-- 実行ユーザー（`ubuntu`、UID 1000）と作業ディレクトリ
+- イメージの既定の実行ユーザー（`ubuntu`、UID 1000）と作業ディレクトリ
 - `/work` と `/models` に書き込めること
-- 入っているツール（Python3 / git / curl / gcc / Node.js / uv / Codex CLI / Claude Code）が動くこと
+- 入っているツール（Python3 / git / curl / gcc / g++ / make / Node.js / uv / Codex CLI / Claude Code）が動くこと
 - 環境変数（`LANG`、`UV_TORCH_BACKEND`、`HF_HOME` など）
-- Python のヘッダーを使ったコンパイルと、uv での venv 作成・パッケージのインストール
-- コンテナから GPU が見えること（ホストに `nvidia-smi` があるときだけ）
+- `python3 -m pip`、`python3 -m venv`、Python のヘッダーを使ったコンパイル
+- uv での venv 作成・パッケージのインストールと、キャッシュが `/work/.cache/uv` に書かれること
+- コンテナから GPU が見えること
+
+GPU のテストは、ホストに `nvidia-smi` があるときだけ実行する。`SMOKE_GPU=1` で必ず実行、`SMOKE_GPU=0` でスキップできる。検査 1 つあたりの制限時間は 120 秒で、`SMOKE_TIMEOUT` で変えられる。
 
 使い捨てのコンテナで実行し、ホストのディレクトリはマウントしない。`.my-ai-*` の中身には触らない。PyTorch のインストールや、Claude Code / Codex CLI へのログインは対象外。
 
