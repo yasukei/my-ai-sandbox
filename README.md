@@ -69,7 +69,8 @@ tests/smoke-test.sh yasukei/my-ai-sandbox:20260930
 
 確かめる内容:
 
-- 認証情報や識別子が入るファイル（Claude Code / Codex CLI の設定、Hugging Face のトークン、git / npm / uv / pip / ssh / docker / gh の認証情報）がイメージに無いこと。認証情報らしい名前の環境変数が無いこと
+- 認証情報や識別子が入るファイル（Claude Code / Codex CLI の設定、Hugging Face のトークン、git / npm / uv / pip / ssh / docker / gh の認証情報や設定ファイル）がイメージに無いこと
+- イメージの環境変数に、認証情報らしい名前のものや、値に認証情報を含む URL（`https://user:pass@host` など）が無いこと。見つかったときは名前だけを表示する
 - イメージの既定の実行ユーザー（`ubuntu`、UID 1000）と作業ディレクトリ
 - `/work` と `/models` に書き込めること
 - 入っているツール（Python3 / git / curl / gcc / g++ / make / Node.js / uv / Codex CLI / Claude Code）が動くこと
@@ -103,7 +104,7 @@ trivy のスキャナはすべて使う。失敗させる（終了コード 1）
 | ライセンス（`license`） | パッケージのライセンスの種類 | 件数だけ表示 |
 
 - trivy は公式の Docker イメージ（`aquasec/trivy`）で動かす。使う版は `tests/trivy/Dockerfile` の `FROM` で決まる（ビルドはせず、この行だけを読む）。
-- イメージを `docker save` で一時的な tar（700MB 程度）にしてから、trivy に渡す。trivy のコンテナには Docker のソケットを渡さない。
+- イメージを `docker save` で一時的な tar にしてから、trivy に渡す。tar の大きさは Docker のイメージストアで変わり、700MB〜2.8GB 程度。trivy のコンテナには Docker のソケットを渡さない。
 - 脆弱性の DB をダウンロードするので、ネットワークが必要。結果の集計（`tests/trivy/report.py`）に、ホストの `python3` を使う。
 - スキャンできなかったときは終了コード 2 で終わる。
 

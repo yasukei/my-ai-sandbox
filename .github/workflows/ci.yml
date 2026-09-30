@@ -23,6 +23,7 @@ jobs:
         run: docker compose config --quiet
 
       - name: イメージのビルド
+        id: build
         run: docker compose build
 
       # GitHub のランナーには GPU が無いので、GPU のテストはスキップされる
@@ -30,6 +31,8 @@ jobs:
         run: tests/smoke-test.sh
 
       # 公式の trivy のイメージで、脆弱性・設定の問題・秘密情報・ライセンスを調べる。
-      # 失敗させるのは、秘密情報と、修正版がある CRITICAL の脆弱性だけ
+      # 失敗させるのは、秘密情報と、修正版がある CRITICAL の脆弱性だけ。
+      # スモークテストが失敗しても、ビルドできていればスキャンの結果は出す
       - name: イメージのスキャン（trivy）
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: tests/image-scan.sh

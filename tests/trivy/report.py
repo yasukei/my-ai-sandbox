@@ -9,6 +9,9 @@ tests/image-scan.sh から呼ばれる。標準ライブラリだけを使う。
     - 秘密情報が 1 件でも見つかった
     - 修正版がある CRITICAL の脆弱性が 1 件でもある
 それ以外（HIGH 以下の脆弱性、設定の問題、ライセンス）は表示だけにする。
+
+結果を読み取れなかったとき（JSON が壊れている、想定したキーが無いなど）は、
+判定できないので終了コード 2 で終わる。1 と区別するため、例外で終わらせない。
 """
 
 import json
@@ -28,7 +31,28 @@ LICENSE_CATEGORIES = [
 
 
 def main() -> int:
-    with open(sys.argv[1], encoding="utf-8") as f:
+    if len(sys.argv) != 2:
+        print(
+            "使い方: python3 tests/trivy/report.py <trivy の JSON の結果>",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        return run(sys.argv[1])
+    except Exception as e:  # noqa: BLE001 どの例外でも「判定できなかった」として扱う
+        print(
+            f"\n結果: trivy の結果を読み取れませんでした（{type(e).__name__}: {e}）",
+            file=sys.stderr,
+        )
+        return 2
+
+
+def is_critical_fixable(v: dict) -> bool:
+    return v["Severity"] == "CRITICAL" and bool(v.get("FixedVersion"))
+
+
+def run(path: str) -> int:
+    with open(path, encoding="utf-8") as f:
         report = json.load(f)
 
     vulns = []  # (target, vulnerability)
@@ -74,11 +98,7 @@ def main() -> int:
             f"  {target}:{s.get('StartLine', '')}  {s.get('Match', '')}"
         )
 
-    critical_fixable = [
-        (t, v)
-        for t, v in vulns
-        if v["Severity"] == "CRITICAL" and v.get("FixedVersion")
-    ]
+    critical_fixable = [(t, v) for t, v in vulns if is_critical_fixable(v)]
     print("\n== 修正版がある CRITICAL の脆弱性（1 件でもあれば失敗）")
     if not critical_fixable:
         print("  なし")
@@ -88,11 +108,14 @@ def main() -> int:
     high_or_above = [
         (t, v)
         for t, v in vulns
-        if v["Severity"] in ("CRITICAL", "HIGH") and (t, v) not in critical_fixable
+        if v["Severity"] in ("CRITICAL", "HIGH") and not is_critical_fixable(v)
     ]
-    # 修正版があるものを先に並べる
+    # 修正版があるものを先に、同じなら重大度の高い順に並べる
     high_or_above.sort(
-        key=lambda tv: (not tv[1].get("FixedVersion"), tv[1]["Severity"])
+        key=lambda tv: (
+            not tv[1].get("FixedVersion"),
+            SEVERITIES.index(tv[1]["Severity"]),
+        )
     )
     print("\n== そのほかの HIGH 以上の脆弱性（表示のみ）")
     if not high_or_above:
