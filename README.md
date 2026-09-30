@@ -108,18 +108,24 @@ docker compose down                 # 停止してコンテナを削除（デー
 - マウント先の権限は UID の数値で決まり、コンテナの `ubuntu` は UID 1000 固定。ホストのユーザーが UID 1000 でないと、コンテナからマウント先に書き込めない。
 - マウント先に root 所有のファイルができると（root で入って作った場合など）、`ubuntu` から書き込めない。その場合はホスト側で `sudo chown -R "$(id -u):$(id -g)" .my-ai-work` などを実行して、自分の所有に戻す。
 
-compose を使わずに起動する場合（同じく、このリポジトリのディレクトリで実行する）:
+compose を使わずに起動する場合（同じく、このリポジトリのディレクトリで実行する）。compose と同じ形で、コンテナを起動したままにして `exec` で入る:
 
 ```bash
-docker run --gpus all -it --name sandbox \
+docker run -d --init --gpus all --name sandbox \
   --shm-size=8g \
   -v "$PWD/.my-ai-models":/models \
   -v "$PWD/.my-ai-work":/work \
   -v "$PWD/.my-ai-agent-config/claude":/home/ubuntu/.claude \
   -v "$PWD/.my-ai-agent-config/codex":/home/ubuntu/.codex \
   -p 127.0.0.1:8188:8188 \
-  yasukei/my-ai-sandbox:latest
+  yasukei/my-ai-sandbox:latest sleep infinity
+
+docker exec -it sandbox bash    # コンテナに入る
+docker stop sandbox             # 停止（コンテナは残る）
+docker rm sandbox               # コンテナを削除
 ```
+
+`--init` と `sleep infinity` は、`docker stop` をすぐ終わらせるためのもの。bash を直接起動する形（`docker run -it ... yasukei/my-ai-sandbox:latest`）だと、停止のたびに 10 秒待たされる。
 
 ## コンテナ内での使い方
 
@@ -169,6 +175,8 @@ apt-get update && apt-get install -y ffmpeg
 
 入れたパッケージは `docker compose down` でコンテナごと消える。常に必要なものは `Dockerfile` の apt の行に足して再ビルドする。
 
+root で使うのは apt だけにする。`npm install -g` と `uv` は `ubuntu` で実行する。これらの書き込み先（`/home/ubuntu/.local` と `/work/.cache/uv`）は root でも同じなので、root で実行すると root 所有のファイルができ、`ubuntu` から更新できなくなる。`/work/.cache/uv` の実体はホスト側の `.my-ai-work/.cache/uv` なので、ホストでも sudo なしでは消せなくなる。
+
 ## コンテナ・イメージの管理
 
 ```bash
@@ -189,4 +197,5 @@ docker system prune                # 不要なコンテナ・イメージ・キ�
 
 - APIキーやログイン情報はイメージに含めない。`~/.claude` と `~/.codex` はマウントで渡す。
 - 認証情報の実体は `.my-ai-agent-config/` にある。リポジトリ直下の `.gitignore` から該当の行を消したり、`git add -f` でコミットしたりしない。
+- 例外として、コンテナ内で Hugging Face にログインすると、トークンは `.my-ai-models/huggingface/token` に保存される（`HF_HOME` が `/models/huggingface` のため）。git には入らないが、`.my-ai-models/` をコピーしたり人に渡したりするとトークンも一緒に渡る。ファイルに残したくないときは、ログインせずに環境変数 `HF_TOKEN` で渡す。
 - イメージは Docker Hub に push するため、機密情報を `Dockerfile` に書かない。
