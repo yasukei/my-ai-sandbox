@@ -1,0 +1,27 @@
+# 依存の更新を月に 1 回確認して、PR を作る。
+# - major は 1 つずつ個別の PR にする（グループに入れない）
+# - minor / patch はエコシステムごとに 1 つの PR にまとめる
+# - 公開から 7 日たっていない版は提案しない（公開直後に差し替えられた版を避けるため）
+version: 2
+updates:
+  # .github/workflows/ で使っているアクション（コミットのハッシュとコメントの版を更新する）
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions-minor-patch:
+        update-types: [minor, patch]
+
+  # Dockerfile のベースイメージ（nvidia/cuda）
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      docker-minor-patch:
+        update-types: [minor, patch]

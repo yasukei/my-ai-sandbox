@@ -86,6 +86,10 @@ GPU のテストは、ホストに `nvidia-smi` があるときだけ実行す�
 
 ワークフロー自体は [zizmor](https://docs.zizmor.sh/) で静的解析している（`.github/workflows/zizmor.yml`）。指摘があるとジョブが失敗する。ワークフローで使うアクションは、タグではなくコミットのハッシュで指定する（`uses: actions/checkout@<ハッシュ> # v7.0.1` の形）。手元では `uvx zizmor .` で同じ解析を実行できる。
 
+依存の更新は Dependabot に任せている（`.github/dependabot.yml`）。月に 1 回、ワークフローのアクションと `Dockerfile` のベースイメージを確認し、更新があれば PR を作る。major の更新は 1 つずつ個別の PR、minor / patch はまとめて 1 つの PR になる。公開から 7 日たっていない版は提案しない。
+
+ベースイメージ（`nvidia/cuda`）の更新 PR は、CI が通ってもそのままマージしない。CI のランナーには GPU が無いので、ホストのドライバで起動できるかは確かめられない。CUDA のバージョンが上がると起動条件（`NVIDIA_REQUIRE_CUDA`）も変わるので、手元で `tests/smoke-test.sh` を GPU ありで通してからマージする。
+
 ## Docker Hub へのアップロード
 
 ```bash
