@@ -8,15 +8,15 @@
 # CUDA のコードをコンパイルするツール（CUDA 有効の llama-cpp-python など）を使うなら
 # devel / cudnn-devel に変える。
 #
-# 起動条件（13.3.1 時点）: このベースイメージは NVIDIA_REQUIRE_CUDA で
-# 「CUDA 13.3 以上、またはドライバーが 535 / 570 / 580 / 590 / 595 系」を要求する。
+# 起動条件（13.4.1 時点）: このベースイメージは NVIDIA_REQUIRE_CUDA で
+# 「CUDA 13.4 以上、またはドライバーが 535 / 570 / 580 / 590 / 595 / 610 系」を要求する。
 # ホストのドライバー 595.91 は CUDA 13.2 表示（nvidia-smi）だが、595 系なので
 # この条件を満たして起動できる。CUDA を上げたら、この段落も新しい条件に直す。
 #
 # タグに加えてダイジェストでも固定する（同じタグの作り直しも Dependabot の PR で届く）。
 # ダイジェストは docker buildx imagetools inspect <イメージ>:<タグ> の最初の Digest
 # （アーキテクチャ別ではなく全体の値）。
-FROM nvidia/cuda:13.3.1-base-ubuntu26.04@sha256:30f7a2345973fbb584f4c8bc9a7c16c7bae6d0ec08883df4e030387d74756292
+FROM nvidia/cuda:13.4.1-base-ubuntu26.04@sha256:9b091bbc3e1481238346e90d93f63684af509c08ab32218f98793141fc540fd9
 
 # apt を対話なしで実行する。ARG なのでビルド時だけ効き、コンテナ実行時には残らない
 ARG DEBIAN_FRONTEND=noninteractive
