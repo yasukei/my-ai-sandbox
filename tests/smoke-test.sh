@@ -151,6 +151,62 @@ fi
 echo "イメージ: $IMAGE"
 docker run -d --init --name "$CONTAINER" "$IMAGE" sleep infinity >/dev/null
 
+# trivy（tests/image-scan.sh）が見つける秘密情報は、既知の形式のトークンや鍵だけ。
+# ここでは、形式によらず、認証情報や識別子が入るファイルそのものが無いことを確かめる。
+# /root も見るので root で実行する。
+# ほかの検査でツールを動かす前に確かめる（codex は --version でも ~/.codex を作るため）。
+section "認証情報が残っていない"
+check root "Claude Code / Codex CLI の設定（machineID などの識別子や認証情報）が無い" '
+    for p in /home/ubuntu/.claude /home/ubuntu/.claude.json /home/ubuntu/.codex \
+             /root/.claude /root/.claude.json /root/.codex; do
+        if [ -e "$p" ]; then echo "$p がある"; found=1; fi
+    done
+    [ -z "${found:-}" ]'
+check root "Hugging Face のトークンが無い" '
+    for p in "$HF_HOME/token" "$HF_HOME/stored_tokens" \
+             /home/ubuntu/.cache/huggingface/token /root/.cache/huggingface/token \
+             /home/ubuntu/.huggingface/token /root/.huggingface/token; do
+        if [ -e "$p" ]; then echo "$p がある"; found=1; fi
+    done
+    [ -z "${found:-}" ]'
+# pip / uv の設定ファイルは、index の URL にトークンを書けるので対象に入れる。
+# npm のグローバル設定は $NPM_CONFIG_PREFIX/etc/npmrc（このイメージでは ~/.local/etc/npmrc）
+check root "よく使われる認証情報のファイル（git / npm / uv / pip / ssh / docker / gh）が無い" '
+    for home in /home/ubuntu /root; do
+        for f in .git-credentials .netrc .npmrc .pypirc .ssh .docker/config.json \
+                 .config/gh/hosts.yml .local/share/uv/credentials \
+                 .config/pip/pip.conf .pip/pip.conf .config/uv/uv.toml; do
+            if [ -e "$home/$f" ]; then echo "$home/$f がある"; found=1; fi
+        done
+    done
+    for p in "$NPM_CONFIG_PREFIX/etc/npmrc" /etc/pip.conf /etc/xdg/pip/pip.conf /etc/uv/uv.toml; do
+        if [ -e "$p" ]; then echo "$p がある"; found=1; fi
+    done
+    [ -z "${found:-}" ]'
+# イメージの設定の環境変数は、コンテナ内ではなくイメージ自体から読む。
+# 見つかったときは名前だけを表示する（値を出すと、CI のログに認証情報が残る）。
+if env_lines=$(docker image inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$IMAGE" 2>&1); then
+    suspicious=$(printf '%s\n' "$env_lines" | cut -d= -f1 | grep -iE 'KEY|TOKEN|SECRET|PASS|CREDENTIAL|AUTH' || true)
+    if [[ -z $suspicious ]]; then
+        report ok "イメージの環境変数に、認証情報らしい名前のものが無い"
+    else
+        report ng "イメージの環境変数に、認証情報らしい名前のものが無い" "見つかった名前: ${suspicious//$'\n'/, }"
+    fi
+    # 値に URL の userinfo（scheme://user:pass@host）が入っているもの。
+    # http(s) はトークンだけをユーザー名の位置に置く形（https://TOKEN@host）も対象にする。
+    # パスワードの無い ssh://git@host のような形は対象外。
+    url_with_credentials=$(printf '%s\n' "$env_lines" |
+        grep -E '^[^=]+=.*([A-Za-z][A-Za-z0-9+.-]*://[^/@[:space:]]*:[^/@[:space:]]*@|https?://[^/@[:space:]]+@)' |
+        cut -d= -f1 || true)
+    if [[ -z $url_with_credentials ]]; then
+        report ok "イメージの環境変数の値に、認証情報を含む URL が無い"
+    else
+        report ng "イメージの環境変数の値に、認証情報を含む URL が無い" "見つかった名前: ${url_with_credentials//$'\n'/, }"
+    fi
+else
+    report ng "イメージの環境変数を読み取れる" "$env_lines"
+fi
+
 section "ユーザーと作業ディレクトリ"
 check_eq default "既定の実行ユーザーは ubuntu" "ubuntu" 'whoami'
 check_eq default "UID は 1000" "1000" 'id -u'
