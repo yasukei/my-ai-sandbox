@@ -21,6 +21,12 @@ services:
     command: ["sleep", "infinity"]
     init: true
 
+    # API キーなどの環境変数。.env は .gitignore で除外している。
+    # ファイルが無くても起動できるように required: false にする
+    env_file:
+      - path: .env
+        required: false
+
     # ホスト側はこのリポジトリ直下のディレクトリ（リポジトリに含まれている）
     # 中身は各ディレクトリの .gitignore と .dockerignore で除外済み
     volumes:

@@ -208,6 +208,7 @@ docker compose down                 # 停止してコンテナを削除（デー
 | `shm_size: "8gb"` | 共有メモリ（`/dev/shm`）の上限。既定の 64MB では学習系のツールが落ちることがある |
 | `command: sleep infinity` | コンテナを起動したままにして、`exec` で入れるようにする |
 | `init: true` | `stop` / `down` がすぐ終わるようにする（無いと毎回 10 秒待たされる） |
+| `env_file: .env` | リポジトリ直下の `.env` の環境変数（API キーなど）をコンテナに渡す。ファイルが無くても起動できる |
 | `volumes` | ディレクトリをマウント。コンテナを消してもデータが残る |
 | `ports: 127.0.0.1:18188:8188` | ComfyUI などのポートを、ホスト自身にだけ公開 |
 
@@ -223,6 +224,7 @@ compose を使わずに起動する場合（同じく、このリポジトリの
 ```bash
 docker run -d --init --gpus all --name sandbox \
   --shm-size=8g \
+  --env-file .env \
   -v "$PWD/.my-ai-models":/models \
   -v "$PWD/.my-ai-work":/work \
   -v "$PWD/.my-ai-agent-config/claude":/home/ubuntu/.claude \
@@ -236,6 +238,8 @@ docker rm sandbox               # コンテナを削除
 ```
 
 `--init` と `sleep infinity` は、`docker stop` をすぐ終わらせるためのもの。bash を直接起動する形（`docker run -it ... yasukei/my-ai-sandbox:latest`）だと、停止のたびに 10 秒待たされる。
+
+`docker run` の `--env-file` は、ファイルが無いとエラーになる（compose の `required: false` に当たるものが無い）。`.env` が無いときは `--env-file .env` の行を外す。
 
 ## コンテナ内での使い方
 
@@ -268,7 +272,7 @@ torch 系のパッケージ（`torchaudio` など）を追加するときは、`
 Codex CLI は `--sandbox danger-full-access` を付けて起動する。
 
 - Codex CLI は、Linux では bubblewrap（bwrap）でコマンドを隔離して実行する。Docker の既定の設定ではコンテナ内でこの隔離を作れず、付けずに起動するとコマンドの実行が `bwrap: No permissions to create a new namespace` で失敗する。
-- このオプションは Codex 自身の隔離を切る。Codex が実行するコマンドは、`ubuntu` の権限でコンテナ内のすべて（`/work`、`/models`、マウントした Claude Code / Codex の認証情報、ネットワーク）に届く。
+- このオプションは Codex 自身の隔離を切る。Codex が実行するコマンドは、`ubuntu` の権限でコンテナ内のすべて（`/work`、`/models`、マウントした Claude Code / Codex の認証情報、`.env` で渡した環境変数、ネットワーク）に届く。環境変数は `env` のほか、`/proc/*/environ` からほかのプロセスの分も読める。
 - 隔離はコンテナが受け持つ。ホスト側で届くのは、マウントした4つのディレクトリだけ。
 - 毎回付けたくないときは、`.my-ai-agent-config/codex/config.toml` に `sandbox_mode = "danger-full-access"` と書く。
 
@@ -306,6 +310,7 @@ docker system prune                # 不要なコンテナ・イメージ・キ�
 ## 注意
 
 - APIキーやログイン情報はイメージに含めない。`~/.claude` と `~/.codex` はマウントで渡す。
-- 認証情報の実体は `.my-ai-agent-config/` にある。リポジトリ直下の `.gitignore` から該当の行を消したり、`git add -f` でコミットしたりしない。
-- 例外として、コンテナ内で Hugging Face にログインすると、トークンは `.my-ai-models/huggingface/token` に保存される（`HF_HOME` が `/models/huggingface` のため）。git には入らないが、`.my-ai-models/` をコピーしたり人に渡したりするとトークンも一緒に渡る。ファイルに残したくないときは、ログインせずに環境変数 `HF_TOKEN` で渡す。
+- 認証情報の実体は `.my-ai-agent-config/` と `.env` にある。リポジトリ直下の `.gitignore` から該当の行を消したり、`git add -f` でコミットしたりしない。
+- `.env` に書いた値は、コンテナ内のエージェント（Claude Code / Codex）が実行するコマンドからすべて読める。エージェントに使わせてよいキーだけを書き、権限や対象を絞ったトークンにする。
+- 例外として、コンテナ内で Hugging Face にログインすると、トークンは `.my-ai-models/huggingface/token` に保存される（`HF_HOME` が `/models/huggingface` のため）。git には入らないが、`.my-ai-models/` をコピーしたり人に渡したりするとトークンも一緒に渡る。ファイルに残したくないときは、ログインせずに環境変数 `HF_TOKEN` で渡す（`.env` に書けばコンテナに渡る）。
 - イメージは Docker Hub に push するため、機密情報を `Dockerfile` に書かない。
