@@ -209,11 +209,11 @@ docker compose down                 # 停止してコンテナを削除（デー
 | `command: sleep infinity` | コンテナを起動したままにして、`exec` で入れるようにする |
 | `init: true` | `stop` / `down` がすぐ終わるようにする（無いと毎回 10 秒待たされる） |
 | `volumes` | ディレクトリをマウント。コンテナを消してもデータが残る |
-| `ports: 127.0.0.1:8188:8188` | ComfyUI などのポートを、ホスト自身にだけ公開 |
+| `ports: 127.0.0.1:18188:8188` | ComfyUI などのポートを、ホスト自身にだけ公開 |
 
 補足:
 
-- ポートは `127.0.0.1` に限定している。`8188:8188` と書くと LAN の他の端末からも接続でき、ファイアウォール（ufw）でも止まらない。ComfyUI には認証が無いので、限定を外さない。
+- ポートは `127.0.0.1` に限定している。`18188:8188` と書くと LAN の他の端末からも接続でき、ファイアウォール（ufw）でも止まらない。ComfyUI には認証が無いので、限定を外さない。
 - `docker compose stop` / `down` は、`exec` で動かしているツールを強制終了する。先にツール側を終了させておく。
 - マウント先の権限は UID の数値で決まり、コンテナの `ubuntu` は UID 1000 固定。ホストのユーザーが UID 1000 でないと、コンテナからマウント先に書き込めない。
 - マウント先に root 所有のファイルができると（root で入って作った場合など）、`ubuntu` から書き込めない。その場合はホスト側で `sudo chown -R "$(id -u):$(id -g)" .my-ai-work` などを実行して、自分の所有に戻す。
@@ -227,7 +227,7 @@ docker run -d --init --gpus all --name sandbox \
   -v "$PWD/.my-ai-work":/work \
   -v "$PWD/.my-ai-agent-config/claude":/home/ubuntu/.claude \
   -v "$PWD/.my-ai-agent-config/codex":/home/ubuntu/.codex \
-  -p 127.0.0.1:8188:8188 \
+  -p 127.0.0.1:18188:8188 \
   yasukei/my-ai-sandbox:latest sleep infinity
 
 docker exec -it sandbox bash    # コンテナに入る
@@ -248,7 +248,7 @@ uv venv
 source .venv/bin/activate
 uv pip install torch torchvision    # ドライバに合う CUDA ビルドが自動で選ばれる
 uv pip install -r requirements.txt
-python main.py --listen 0.0.0.0    # ホストのブラウザから http://localhost:8188
+python main.py --listen 0.0.0.0    # ホストのブラウザから http://localhost:18188
 
 # GPUが使えているか
 nvidia-smi
