@@ -14,3 +14,5 @@
 !/.my-ai-work/.gitignore
 !/.my-ai-agent-config/claude/.gitignore
 !/.my-ai-agent-config/codex/.gitignore
+
+.env

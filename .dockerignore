@@ -3,3 +3,4 @@
 .my-ai-models
 .my-ai-work
 .my-ai-agent-config
+.env
